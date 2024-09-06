@@ -1,28 +1,89 @@
+document.addEventListener("DOMContentLoaded", function () {
+  const notifyButton = document.createElement("button");
+  notifyButton.textContent = "Notify Me";
+  notifyButton.style.padding = "10px 20px";
+  notifyButton.style.borderRadius = "20px";
+  notifyButton.style.cursor = "pointer";
+  notifyButton.style.margin = "10px";
+  document.body.appendChild(notifyButton);
+
+  notifyButton.addEventListener("click", function () {
+    displayNotification("You have been notified!");
+  });
+
+  const searchButton = document.createElement("button");
+  searchButton.textContent = "Search";
+  searchButton.style.padding = "10px 20px";
+  searchButton.style.borderRadius = "20px";
+  searchButton.style.cursor = "pointer";
+  searchButton.style.margin = "10px";
+  document.body.appendChild(searchButton);
+
+  searchButton.addEventListener("click", function () {
+    displayByName();
+  });
+});
+
+function displayNotification(message) {
+  if (Notification.permission === "granted") {
+    Notification.requestPermission();
+
+    navigator.serviceWorker
+      .getRegistration()
+      .then(function (registration) {
+        const notification = {
+          body: "This is a notification from your app!",
+          icon: "../web-app.png",
+          data: {
+            dataOfArrival: Date.now(),
+            primaryKey: 1,
+          },
+          actions: [
+            { action: "explore", title: "Show Page", icon: "../web-app.png" },
+            {
+              action: "close",
+              title: "Close Page",
+              icon: "../web-app-icon 2.png",
+            },
+          ],
+        };
+        registration.showNotification(message, notification);
+      })
+      .catch((err) => console.log("Error", err));
+  }
+}
 
 var idbApp = (function () {
   "use strict";
 
   // TODO 2 - check for support
-  var dbPromise = idb.open("couches", 5, function (updateDb) {
+var dbPromise = idb.open("couches", 3, function (updateDb) {
     console.log(updateDb.oldVersion);
+
     if (updateDb.oldVersion == 1) {
-      updateDb.createObjectStore("products", { keyPath: "id" });
-    } 
-    else if (updateDb.oldVersion == 2) {
-      console.log("create index");
-      var store = updateDb.transaction.objectStore("products");
-      store.createIndex("name", "name", { unique: true });
+        updateDb.createObjectStore("products", { keyPath: "id" });
+    } else if (updateDb.oldVersion == 2) {
+        console.log("create index");
+        var store = updateDb.transaction.objectStore("products");
+        store.createIndex("name", "name", { unique: true });
+        store.createIndex("description", "description", { unique: true });
+        store.createIndex("price", "price");
     }
-    else if (updateDb.oldVersion == 3) {
-      console.log("create index");
-      var store = updateDb.transaction.objectStore("products");
-      store.createIndex("price", "price", { unique: true });   
-     }
-    else if (updateDb.oldVersion == 4) {
-      console.log("create index");
-      var store = updateDb.transaction.objectStore("products");
-      store.createIndex("description", "description", { unique: true });   
-     }
+
+
+    // switch (updateDb.oldVersion) {
+    //   case 1:
+    //     // add products
+    // console.log("create products collection");
+    // // updateDb.createObjectStore("products", { keyPath: "id" });
+    // break;
+    //   case 2:
+    //     console.log("create index");
+    //     console.log(updateDb);
+    // var store = updateDb.transaction.objectStore("products");
+    // store.createIndex("name", "name", { unique: true });
+    //     break;
+    // }
   });
 
   function addProducts() {
@@ -115,45 +176,6 @@ var idbApp = (function () {
     });
   }
 
-  function displayByDesc() {
-    var key = document.getElementById("desc").value;
-    if (key === "") {
-      return;
-    }
-    var s = "";
-    getByDesc(key)
-      .then(function (object) {
-        if (!object) {
-          return;
-        }
-        console.log(object);
-        s += "<h2>" + object.name + "</h2><p>";
-        for (var field in object) {
-          s += field + " = " + object[field] + "<br/>";
-        }
-        s += "</p>";
-      })
-      .then(function () {
-        if (s === "") {
-          s = "<p>No results.</p>";
-        }
-        document.getElementById("results").innerHTML = s;
-      });
-  }
-  function getByDesc(key) {
-    // TODO 4.3 - use the get method to get an object by name
-    return dbPromise.then((db) => {
-      var tx = db.transaction("products", "readonly");
-      var store = tx.objectStore("products");
-      var index = store.index("description");
-      console.log(index);
-      console.log(1);
-      
-      return index.get(key);
-
-    });
-  }
-
   function displayByName() {
     var key = document.getElementById("name").value;
     if (key === "") {
@@ -179,51 +201,36 @@ var idbApp = (function () {
         document.getElementById("results").innerHTML = s;
       });
   }
-  function getByPrice(minPrice, maxPrice) {
-    return dbPromise.then((db) => {
-      var tx = db.transaction("products", "readonly");
-      var store = tx.objectStore("products");
-      var index = store.index("price");
-      var range = IDBKeyRange.bound(minPrice, maxPrice, false, true);
-      return index.getAll(range);
-    });
-  }
 
-  function displayByPrice() {
-    var minPrice = document.getElementById("priceLower").value;
-    var maxPrice = document.getElementById("priceUpper").value;
+function getByPrice(min, max) {
+    return dbPromise.then(function (db) {
+        var tx = db.transaction('products', 'readonly');
+        var store = tx.objectStore('products');
+        var index = store.index('price');
+        var range = IDBKeyRange.bound(min, max);
+        var results = [];
 
-    if (minPrice === "" || maxPrice === "") {
-      return;
-    }
-
-    minPrice = Number(minPrice);
-    maxPrice = Number(maxPrice);
-
-    var s = "";
-    getByPrice(minPrice, maxPrice)
-      .then(function (objects) {
-        if (!objects || objects.length === 0) {
-          return;
-        }
-        objects.forEach(function (object) {
-          console.log(object);
-          s += "<h2>" + object.name + "</h2><p>";
-          for (var field in object) {
-            s += field + " = " + object[field] + "<br/>";
-          }
-          s += "</p>";
+        return index.openCursor(range).then(function cursorIterate(cursor) {
+            if (!cursor) return results;
+            if (cursor.value.price >= min && cursor.value.price <= max) {
+                results.push(cursor.value);
+            }
+            return cursor.continue().then(cursorIterate);
         });
-      })
-      .then(function () {
-        if (s === "") {
-          s = "<p>No results.</p>";
-        }
-        document.getElementById("results").innerHTML = s;
-      });
+    });
+}
+
+
+
+
+  function getByDesc() {
+        return dbPromise.then((db) => {
+          var tx = db.transaction("products", "readonly");
+          var store = tx.objectStore("products");
+          var index = store.index("description");
+          return index.get(key);
+        });
   }
-
-
 
   function addOrders() {
     // TODO 5.2 - add items to the 'orders' object store
@@ -273,7 +280,5 @@ var idbApp = (function () {
     processOrders: processOrders,
     decrementQuantity: decrementQuantity,
     updateProductsStore: updateProductsStore,
-    displayByPrice:displayByPrice,
-    displayByDesc:displayByDesc
   };
 })();
